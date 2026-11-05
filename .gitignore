@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.dev.vars
+deploy/
+wrangler.prod.toml
+*.log
+.DS_Store

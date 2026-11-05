@@ -1,0 +1,13 @@
+# Local run: npm run dev, then call the routes on http://127.0.0.1:8787 (see README).
+name = "portal-isolation-check"
+main = "worker/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = false
+
+[[durable_objects.bindings]]
+name = "SANDBOX"
+class_name = "Sandbox"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Sandbox"]

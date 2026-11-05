@@ -1,0 +1,9 @@
+[
+  {
+    "id": "omit-client-check",
+    "what": "the same code with the client check removed from the one access rule",
+    "file": "src/policy.ts",
+    "remove": "    if (actor.clientId !== doc.clientId) return { ok: false, reason: 'other_client' };\n",
+    "expect": "client B cannot open client A's file by its link"
+  }
+]

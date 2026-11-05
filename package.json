@@ -1,0 +1,16 @@
+{
+  "name": "portal-isolation-check",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test \"test/*.test.ts\"",
+    "mutant": "node scripts/mutant.mjs",
+    "typecheck": "tsc --noEmit",
+    "dev": "npx wrangler dev --ip 127.0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3"
+  }
+}
