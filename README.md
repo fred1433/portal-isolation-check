@@ -9,27 +9,29 @@ Fictional firm, fictional clients, fictional PDFs. No sign-in provider, no cloud
 | Rule | Test (in `test/`) |
 | --- | --- |
 | A client opens their own file by its link | `client A opens their own file by its link` |
-| The same link, sent from another client's own server session, returns nothing: no content, no name, no preview, only the id of an audit row | `client B cannot open client A's file by its link` |
+| The same link, sent from another client's own server session, returns no file and no file details, only the id of an audit row | `client B cannot open client A's file by its link` |
 | A refused file and a missing file get the same answer | `a refused link looks exactly like a link to a file that does not exist` |
 | Lists and metadata go through the same rule as downloads | `client B's file list and metadata route do not reveal client A's file` |
+| The link pasted into a tab with no matching session gets a short page with the same status, and nothing else | `the link pasted into a browser tab with no matching session gets a short page and nothing else` |
 | An accountant opens only assigned clients; a reassignment applies to sessions already open | `after a reassignment, the previous accountant's open session is refused and the new accountant is allowed` |
-| Every refused read leaves one append-only audit row, readable only by a firm admin | `audit.test.ts` |
-| The firm boundary holds (a second fictional firm, its admin included) | `nobody from another firm opens the file, not even its admin` |
-| The document agent works through a task-scoped service identity: it reads the assigned upload, writes the result to the same client, and fails if the client id is swapped | `hermes.test.ts` (driven by a scripted HTTP client) |
+| Client B's denied read is recorded with its attempt id, readable only by a firm admin; the audit table rejects UPDATE and DELETE in this test | `audit.test.ts` |
+| Reads with no valid session get 401 and leave no row in a firm's review view; they go to an operator log that no route serves | `reads with no valid session get 401, ...` |
+| Another firm sees one reason for "file of another firm" and "no such file"; the operator log keeps the difference | `another firm's review view shows one reason ...` |
+| A document agent (Hermes) can process only tasks assigned to its service identity: it reads the assigned upload, writes the result to the same client, fails if the client id is swapped, cannot touch another identity's task, and two simultaneous writes produce one result | `hermes.test.ts` (driven by a scripted HTTP client) |
 
-The rule lives in one function, `mayRead()` in `src/policy.ts`. Every route that can return a file, its name or its metadata calls it, with the assignment read fresh from the database on each request.
+All human file reads share one access rule, `mayRead()` in `src/policy.ts`: every route that can return a file, its name or its metadata calls it, with the assignment read fresh from the database on each request. Service routes have their own task-scoped check in `src/portal.ts`.
 
 ## Run it
 
 ```sh
 npm ci
-npm test          # 17 tests
-npm run mutant    # same tests on a copy of the code without the client check: must fail on the expected test
+npm test          # 24 tests
+npm run mutant    # same tests on copies of the code with one control removed: each must fail on its expected test
 ```
 
 Node 24 or later (built-in `node:sqlite` and TypeScript type stripping; no other runtime dependency).
 
-`npm run mutant` copies `src/` and `test/` to a temporary folder, removes one line from the rule (listed in `mutants/mutants.json`), runs the suite and passes only if `client B cannot open client A's file by its link` goes red. The working tree is never modified and no red branch is needed.
+`npm run mutant` copies `src/` and `test/` to a temporary folder, removes one control (listed in `mutants/mutants.json`: the client check in the access rule, then the task-owner filter of the service identity), runs the suite and passes only if the expected test goes red each time. The working tree is never modified and no red branch is needed.
 
 CI (`.github/workflows/ci.yml`) runs three jobs on every push: the tests, the mutant run, and a secrets scan (gitleaks on the full history, plus a planted key that the scanner must refuse).
 
@@ -49,12 +51,13 @@ A browser may hold several demo sessions at once, one cookie each, like several 
 
 ## Hosting of the public demo
 
-Cloudflare Workers, one Durable Object per visitor with its own SQLite database, seeded with fictional records and erased after 24 hours. `npm run dev` runs the same Worker locally on 127.0.0.1.
+Cloudflare Workers, one Durable Object per visitor with its own SQLite database, seeded with fictional records and scheduled for deletion after 24 hours. `npm run dev` runs the same Worker locally on 127.0.0.1.
 
 ## Not in this prototype, on purpose
 
 - Sign-in and multi-factor authentication. They belong to the identity provider and get their own test on staging (every role, staff included, refused without a second factor).
-- Azure Blob Storage and PostgreSQL. In production the same rule would sit in the data layer, with row-level security as a second lock tested under the application's own database role (not the table owner, no `BYPASSRLS`), and downloads served through the authorizing route or a short user delegation SAS issued after the check.
+- Azure Blob Storage and PostgreSQL. In production the same rule would sit in the data layer, with row-level security as a second lock tested under the application's own database role (not the table owner, no `BYPASSRLS`). Every new download request, including large-file range requests, would check the current assignment before serving bytes.
+- Monitoring, alerting and retention of the production audit log.
 - Real integrations. Nothing here connects to any accounting, CRM or agent system.
 
 Prepared by Frederic de Lavenne de Choulot, The AI Pipe.

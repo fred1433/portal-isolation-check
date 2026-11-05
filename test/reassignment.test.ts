@@ -42,3 +42,17 @@ test('only a firm admin can reassign a client', async () => {
   const acct1 = await as('accountant_1');
   assert.equal((await acct1.get(`/files/${seed.docs.a}`)).status, 200, 'assignment unchanged');
 });
+
+test('a reassignment that changes nothing writes no audit row; an unknown client is named as such', async () => {
+  const { db, seed, as } = await setup();
+  const admin = await as('firm_admin');
+  const before = Number(db.all("SELECT COUNT(*) AS n FROM audit WHERE action = 'reassign'")[0].n);
+  const same = await admin.post('/api/assignments', { client_id: seed.clients.a, accountant_id: seed.users.accountant_1 });
+  assert.equal(same.status, 200);
+  assert.equal((await same.json()).unchanged, true);
+  assert.equal(Number(db.all("SELECT COUNT(*) AS n FROM audit WHERE action = 'reassign'")[0].n), before);
+  const unknown = await admin.post('/api/assignments', { client_id: 'cli_doesnotexist', accountant_id: seed.users.accountant_2 });
+  assert.equal(unknown.status, 403);
+  const row = db.all("SELECT reason FROM audit WHERE action = 'reassign' ORDER BY seq DESC LIMIT 1")[0];
+  assert.equal(row.reason, 'no_such_client');
+});

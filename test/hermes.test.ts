@@ -53,9 +53,36 @@ test("Hermes's token opens nothing outside its task", async () => {
   const { seed, hermes } = await setup();
   assert.equal((await hermes.request('GET', `/files/${seed.docs.b}`)).status, 401);
   assert.equal((await hermes.request('GET', '/api/files')).status, 401);
-  assert.equal((await hermes.request('GET', '/api/hermes/tasks/task_notyours00000/input')).status, 404);
+  assert.equal((await hermes.request('GET', '/api/hermes/tasks/task_doesnotexist0/input')).status, 404);
   await hermes.request('POST', `/api/hermes/tasks/${seed.tasks.a}/result`, {
     client_id: seed.clients.a, name: 'Done (fictional).pdf', pdf_base64: finishedPdf(),
   });
   assert.equal((await hermes.request('GET', `/api/hermes/tasks/${seed.tasks.a}/input`)).status, 404, 'a finished task is closed');
+});
+
+test("one Hermes identity cannot read or complete another identity's task", async () => {
+  const { db, seed, hermes, hermes2 } = await setup();
+  const mine = await (await hermes.request('GET', '/api/hermes/tasks')).json();
+  assert.ok(!mine.tasks.some((t: { id: string }) => t.id === seed.tasks.b), 'task 2 is not listed for identity 1');
+  assert.equal((await hermes.request('GET', `/api/hermes/tasks/${seed.tasks.b}/input`)).status, 404, 'identity 1 reads task 2');
+  const write = await hermes.request('POST', `/api/hermes/tasks/${seed.tasks.b}/result`, {
+    client_id: seed.clients.b, name: 'Finished (fictional).pdf', pdf_base64: finishedPdf(),
+  });
+  assert.equal(write.status, 404, 'identity 1 completes task 2');
+  assert.equal(db.all('SELECT status FROM hermes_tasks WHERE id = ?', seed.tasks.b)[0].status, 'queued');
+  // The rightful identity still can.
+  assert.equal((await hermes2.request('GET', `/api/hermes/tasks/${seed.tasks.b}/input`)).status, 200);
+});
+
+test('two simultaneous result writes for one task: exactly one is accepted', async () => {
+  const { db, seed, hermes } = await setup();
+  const body = { client_id: seed.clients.a, name: 'Finished organizer (fictional).pdf', pdf_base64: finishedPdf() };
+  const before = Number(db.all("SELECT COUNT(*) AS n FROM documents WHERE kind = 'finished'")[0].n);
+  const results = await Promise.all([
+    hermes.request('POST', `/api/hermes/tasks/${seed.tasks.a}/result`, body),
+    hermes.request('POST', `/api/hermes/tasks/${seed.tasks.a}/result`, body),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [201, 404]);
+  const after = Number(db.all("SELECT COUNT(*) AS n FROM documents WHERE kind = 'finished'")[0].n);
+  assert.equal(after - before, 1);
 });

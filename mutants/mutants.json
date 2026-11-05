@@ -5,5 +5,13 @@
     "file": "src/policy.ts",
     "remove": "    if (actor.clientId !== doc.clientId) return { ok: false, reason: 'other_client' };\n",
     "expect": "client B cannot open client A's file by its link"
+  },
+  {
+    "id": "omit-task-owner-check",
+    "what": "the same code with the task-owner filter removed from the service identity's task lookup",
+    "file": "src/portal.ts",
+    "find": "  return db.all(\"SELECT * FROM hermes_tasks WHERE id = ? AND service_user_id = ? AND status = 'queued'\", taskId, actor.userId)[0];\n",
+    "replace": "  return db.all(\"SELECT * FROM hermes_tasks WHERE id = ? AND status = 'queued'\", taskId)[0];\n",
+    "expect": "one Hermes identity cannot read or complete another identity's task"
   }
 ]

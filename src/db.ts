@@ -55,7 +55,7 @@ export const SCHEMA: string[] = [
      client_id TEXT NOT NULL REFERENCES clients(id),
      input_document_id TEXT NOT NULL REFERENCES documents(id),
      service_user_id TEXT NOT NULL REFERENCES users(id),
-     status TEXT NOT NULL CHECK (status IN ('queued','done')),
+     status TEXT NOT NULL CHECK (status IN ('queued','writing','done')),
      result_document_id TEXT REFERENCES documents(id))`,
   `CREATE TABLE audit (
      seq INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +70,23 @@ export const SCHEMA: string[] = [
      client_id TEXT,
      result TEXT NOT NULL CHECK (result IN ('allowed','denied')),
      reason TEXT)`,
+  // Operator log: every refusal with its true reason, including reads with no
+  // valid session and attempts from another firm. No route serves it.
+  `CREATE TABLE operator_log (
+     seq INTEGER PRIMARY KEY AUTOINCREMENT,
+     at TEXT NOT NULL,
+     actor_firm_id TEXT,
+     document_firm_id TEXT,
+     user_id TEXT,
+     action TEXT NOT NULL,
+     target TEXT,
+     status INTEGER NOT NULL,
+     reason TEXT NOT NULL,
+     attempt TEXT)`,
+  `CREATE TRIGGER operator_log_no_update BEFORE UPDATE ON operator_log
+     BEGIN SELECT RAISE(ABORT, 'operator log is append-only'); END`,
+  `CREATE TRIGGER operator_log_no_delete BEFORE DELETE ON operator_log
+     BEGIN SELECT RAISE(ABORT, 'operator log is append-only'); END`,
   `CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit
      BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END`,
   `CREATE TRIGGER audit_no_delete BEFORE DELETE ON audit

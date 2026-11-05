@@ -85,3 +85,20 @@ test('nobody from another firm opens the file, not even its admin', async () => 
     assert.ok(!list.files.some((f: { id: string }) => f.id === seed.docs.a), identity);
   }
 });
+
+test('the link pasted into a browser tab with no matching session gets a short page and nothing else', async () => {
+  const { seed, app, as } = await setup();
+  const nav = { 'sec-fetch-mode': 'navigate', accept: 'text/html' };
+  const fresh = await app(new Request(`http://portal.test/files/${seed.docs.a}`, { headers: nav }));
+  assert.equal(fresh.status, 401);
+  assert.match(fresh.headers.get('content-type') ?? '', /text\/html/);
+  const page = await fresh.text();
+  assert.match(page, /Nothing comes back from this link/);
+  assert.ok(!page.includes('Client A') && !page.includes('.pdf'), 'no name in the page');
+  const clientB = await as('client_b');
+  const refusedNav = await clientB.get(`/files/${seed.docs.a}`, nav);
+  assert.equal(refusedNav.status, 404);
+  const text = await refusedNav.text();
+  assert.match(text, /Recorded as attempt att_/);
+  assert.ok(!text.includes('Client A'));
+});

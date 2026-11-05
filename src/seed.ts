@@ -10,8 +10,8 @@ export type Seed = {
   clients: { a: string; b: string; c: string; f2: string };
   users: Record<string, string>;
   docs: { a: string; b: string; c: string; f2: string };
-  tasks: { a: string };
-  hermesToken: string;
+  tasks: { a: string; b: string };
+  hermesTokens: { h1: string; h2: string };
 };
 
 const LINES: Record<string, string[]> = {
@@ -24,8 +24,8 @@ const LINES: Record<string, string[]> = {
     'Property tax statement ...................... 2,906.18',
     'Childcare receipts ............................. 4,150.00',
     '',
-    'Only Client A, the accountant assigned to Client A and a firm admin',
-    'may open this file.',
+    'Only Client A, the accountant assigned to Client A, a firm admin, and the',
+    'service identity given a task on this file may open it.',
   ],
   b: [
     'Client B: 2025 payroll summary',
@@ -84,7 +84,8 @@ export async function seedDemo(db: Db, at: string): Promise<Seed> {
   addUser('firm_admin', firm1, 'firm_admin', null, 'Firm admin');
   addUser('f2_admin', firm2, 'firm_admin', null, 'Firm 2 admin');
   addUser('f2_client', firm2, 'client', clients.f2, 'Firm 2 client');
-  const hermes = addUser(null, firm1, 'service', null, 'Hermes (service)');
+  const hermes1 = addUser(null, firm1, 'service', null, 'Hermes 1 (service)');
+  const hermes2 = addUser(null, firm1, 'service', null, 'Hermes 2 (service)');
 
   db.run('INSERT INTO assignments (client_id, accountant_id, assigned_at) VALUES (?, ?, ?)', clients.a, acct1, at);
   db.run('INSERT INTO assignments (client_id, accountant_id, assigned_at) VALUES (?, ?, ?)', clients.b, acct2, at);
@@ -97,13 +98,17 @@ export async function seedDemo(db: Db, at: string): Promise<Seed> {
     f2: await addDocument(db, firm2, clients.f2, '2025 engagement letter, Firm 2 client (fictional).pdf', 'client_upload', makePdf(LINES.f2), at),
   };
 
-  const hermesToken = randomToken();
-  db.run('INSERT INTO service_tokens (token_hash, user_id) VALUES (?, ?)', await sha256hex(hermesToken), hermes);
-  const taskA = rid('task');
-  db.run(
+  // Two service identities, each with one real task.
+  const hermesTokens = { h1: randomToken(), h2: randomToken() };
+  db.run('INSERT INTO service_tokens (token_hash, user_id) VALUES (?, ?)', await sha256hex(hermesTokens.h1), hermes1);
+  db.run('INSERT INTO service_tokens (token_hash, user_id) VALUES (?, ?)', await sha256hex(hermesTokens.h2), hermes2);
+  const tasks = { a: rid('task'), b: rid('task') };
+  const addTask = (id: string, clientId: string, docId: string, service: string) => db.run(
     "INSERT INTO hermes_tasks (id, firm_id, client_id, input_document_id, service_user_id, status) VALUES (?, ?, ?, ?, ?, 'queued')",
-    taskA, firm1, clients.a, docs.a, hermes,
+    id, firm1, clientId, docId, service,
   );
+  addTask(tasks.a, clients.a, docs.a, hermes1);
+  addTask(tasks.b, clients.b, docs.b, hermes2);
 
-  return { firm1, firm2, clients, users, docs, tasks: { a: taskA }, hermesToken };
+  return { firm1, firm2, clients, users, docs, tasks, hermesTokens };
 }

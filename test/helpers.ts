@@ -83,7 +83,7 @@ export async function setup() {
     await b.signIn(identity);
     return b;
   };
-  return { db, seed, app, as, hermes: new ServiceClient(app, seed.hermesToken) };
+  return { db, seed, app, as, hermes: new ServiceClient(app, seed.hermesTokens.h1), hermes2: new ServiceClient(app, seed.hermesTokens.h2) };
 }
 
 export async function bytesOf(res: Response): Promise<Uint8Array> {

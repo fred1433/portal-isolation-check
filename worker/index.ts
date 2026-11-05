@@ -3,7 +3,7 @@
 // fictional records and erased 24 hours after it was created.
 import { DurableObject } from 'cloudflare:workers';
 import { applySchema, hasSchema, type Db, type Row } from '../src/db.ts';
-import { handle } from '../src/portal.ts';
+import { handle, isNavigation, refusalPage } from '../src/portal.ts';
 import { seedDemo } from '../src/seed.ts';
 import { randomToken } from '../src/util.ts';
 
@@ -81,7 +81,10 @@ async function route(request: Request, env: Env): Promise<Response> {
       sandbox = randomToken();
       fresh = true;
     }
-    if (!sandbox) return Response.json({ error: 'no_sandbox' }, { status: 401, headers: { 'cache-control': 'no-store' } });
+    if (!sandbox) {
+      if (path.startsWith('/files/') && isNavigation(request)) return refusalPage(401);
+      return Response.json({ error: 'no_sandbox' }, { status: 401, headers: { 'cache-control': 'no-store' } });
+    }
     const stub = env.SANDBOX.get(env.SANDBOX.idFromName(sandbox));
     const res = await stub.fetch(request);
     if (!fresh) return res;

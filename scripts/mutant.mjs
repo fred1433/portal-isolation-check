@@ -13,13 +13,15 @@ for (const m of mutants) {
   for (const p of ['src', 'test', 'package.json']) cpSync(p, join(dir, p), { recursive: true });
   const file = join(dir, m.file);
   const source = readFileSync(file, 'utf8');
-  if (source.split(m.remove).length !== 2) {
-    console.error(`mutant ${m.id}: the line to remove is not found exactly once in ${m.file}`);
+  const find = m.remove ?? m.find;
+  const replace = m.remove !== undefined ? '' : m.replace;
+  if (source.split(find).length !== 2) {
+    console.error(`mutant ${m.id}: the text to change is not found exactly once in ${m.file}`);
     process.exit(2);
   }
-  writeFileSync(file, source.replace(m.remove, ''));
+  writeFileSync(file, source.replace(find, replace));
   console.log(`mutant ${m.id}: ${m.what}`);
-  console.log(`removed from ${m.file}:\n- ${m.remove.trim()}\n`);
+  console.log(`in ${m.file}:\n- ${find.trim()}${replace ? `\n+ ${replace.trim()}` : ''}\n`);
   const run = spawnSync(process.execPath, ['--test', '--test-reporter=spec', 'test/*.test.ts'], { cwd: dir, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', FORCE_COLOR: '0' } });
   const out = run.stdout + run.stderr;
   const failing = [...out.matchAll(/^\s*✖ (.+?) \(\d/gm)].map((x) => x[1]);
